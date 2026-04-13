@@ -1,0 +1,17 @@
+torch>=2.3.0
+torchvision
+transformers>=4.44.0
+openai
+pandas
+pyarrow
+requests
+tqdm
+pillow
+open_clip_torch
+sentence-transformers
+recbole
+faiss-cpu
+scikit-learn
+matplotlib
+seaborn
+numpy

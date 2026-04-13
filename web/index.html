@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SID 电影推荐系统</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #1f6feb;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --tag-bg: #1c2333;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+  /* Header */
+  header { text-align: center; padding: 40px 20px 30px; border-bottom: 1px solid var(--border); margin-bottom: 30px; }
+  header h1 { font-size: 2em; margin-bottom: 8px; }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--text2); font-size: 1.05em; }
+
+  /* Layout */
+  .main-grid { display: grid; grid-template-columns: 380px 1fr; gap: 30px; }
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* Panel */
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .panel h2 { font-size: 1.15em; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .panel h2 .icon { font-size: 1.3em; }
+
+  /* Search */
+  .search-box { position: relative; margin-bottom: 16px; }
+  .search-box input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 0.95em; outline: none; transition: border-color .2s; }
+  .search-box input:focus { border-color: var(--accent); }
+  .search-box input::placeholder { color: var(--text2); }
+  .dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; max-height: 300px; overflow-y: auto; z-index: 100; display: none; margin-top: 4px; }
+  .dropdown.open { display: block; }
+  .dropdown-item { padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border); transition: background .15s; }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item:hover { background: var(--accent2); }
+  .dropdown-item .d-title { font-size: 0.93em; }
+  .dropdown-item .d-genre { font-size: 0.8em; color: var(--text2); }
+
+  /* Selected movies */
+  .selected-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; min-height: 60px; }
+  .selected-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; font-size: 0.9em; }
+  .selected-item .num { color: var(--accent); font-weight: 600; margin-right: 8px; min-width: 20px; }
+  .selected-item .remove-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 1.1em;
+    padding: 2px 6px; border-radius: 4px; transition: background .15s; }
+  .selected-item .remove-btn:hover { background: rgba(248,81,73,0.15); }
+  .empty-hint { color: var(--text2); font-size: 0.9em; text-align: center; padding: 20px 0; }
+
+  /* Buttons */
+  .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 1em; cursor: pointer;
+    font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { background: var(--accent2); color: #fff; width: 100%; justify-content: center; }
+  .btn-primary:hover { background: var(--accent); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-clear { background: transparent; border: 1px solid var(--border); color: var(--text2); margin-top: 8px; width: 100%;
+    justify-content: center; font-size: 0.9em; padding: 8px; }
+  .btn-clear:hover { border-color: var(--red); color: var(--red); }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px; color: var(--text2); }
+  .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* SID decode */
+  .sid-section { margin-bottom: 24px; }
+  .sid-section h3 { font-size: 0.95em; color: var(--text2); margin-bottom: 10px; }
+  .sid-tokens { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sid-token { display: inline-flex; flex-direction: column; align-items: center; padding: 6px 10px;
+    background: var(--tag-bg); border: 1px solid var(--border); border-radius: 6px; font-size: 0.8em; }
+  .sid-token .tok-label { color: var(--text2); font-size: 0.75em; margin-bottom: 2px; }
+  .sid-token .tok-value { color: var(--green); font-weight: 600; }
+  .sid-token.genre { border-color: var(--orange); }
+  .sid-token.attr { border-color: var(--accent); }
+  .sid-token.implicit { border-color: var(--text2); }
+
+  /* Results */
+  .results-area { min-height: 200px; }
+  .results-placeholder { text-align: center; padding: 80px 20px; color: var(--text2); }
+  .results-placeholder .big-icon { font-size: 3em; margin-bottom: 12px; }
+  .rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .rec-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    transition: border-color .2s, transform .2s; }
+  .rec-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .rec-card-body { padding: 16px; }
+  .rec-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .rec-card-title { font-size: 1em; font-weight: 600; flex: 1; }
+  .rec-card-score { background: var(--accent2); color: #fff; padding: 2px 10px; border-radius: 12px;
+    font-size: 0.8em; font-weight: 600; white-space: nowrap; margin-left: 8px; }
+  .rec-card .meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .rec-card .genre-tag { padding: 2px 8px; background: var(--tag-bg); border: 1px solid var(--border);
+    border-radius: 4px; font-size: 0.78em; color: var(--text2); }
+  .rec-card .overview { font-size: 0.85em; color: var(--text2); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; }
+  .rec-card .detail-row { font-size: 0.82em; color: var(--text2); margin-bottom: 4px; }
+  .rec-card .detail-row span { color: var(--text); }
+  .rec-card .tags-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .rec-card .sem-tag { padding: 1px 6px; border-radius: 3px; font-size: 0.72em; }
+  .rec-card .sem-tag.mood { background: #1c2d1c; color: var(--green); }
+  .rec-card .sem-tag.pace { background: #2d2a1c; color: var(--orange); }
+  .rec-card .sem-tag.audience { background: #1c2333; color: var(--accent); }
+  .rec-card .poster-img { width: 100%; height: 180px; object-fit: cover; background: var(--card); display: block; }
+  .rec-card .poster-placeholder { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1c2333 0%, #161b22 100%); color: var(--text2); font-size: 2.5em; }
+
+  /* Rank badge */
+  .rank-badge { position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8em; }
+  .rank-1 { background: #ffd700; color: #000; }
+  .rank-2 { background: #c0c0c0; color: #000; }
+  .rank-3 { background: #cd7f32; color: #fff; }
+  .rank-n { background: var(--border); color: var(--text); }
+  .rec-card-wrapper { position: relative; }
+
+  /* Footer */
+  footer { text-align: center; padding: 30px 20px; color: var(--text2); font-size: 0.85em; border-top: 1px solid var(--border); margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎬 <span>SID</span> 电影推荐系统</h1>
+  <p>基于 LLM/VLM 增强语义 ID 的生成式推荐 · Transformer Decoder 自回归预测</p>
+</header>
+
+<div class="container">
+<div class="main-grid">
+
+  <!-- Left Panel: Input -->
+  <div>
+    <div class="panel">
+      <h2><span class="icon">🎞️</span> 选择你看过的电影</h2>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="搜索电影名称..." autocomplete="off">
+        <div class="dropdown" id="dropdown"></div>
+      </div>
+      <div class="selected-list" id="selectedList">
+        <div class="empty-hint">还没有选择电影，请在上方搜索并添加</div>
+      </div>
+      <button class="btn btn-primary" id="recommendBtn" disabled>
+        <span class="spinner" id="btnSpinner" style="display:none"></span>
+        🔮 获取推荐
+      </button>
+      <button class="btn btn-clear" id="clearBtn">清空所有选择</button>
+    </div>
+
+    <!-- SID Decode -->
+    <div class="panel sid-section" id="sidPanel" style="margin-top: 16px; display: none;">
+      <h2><span class="icon">🧬</span> 模型生成的语义 ID</h2>
+      <p style="font-size:0.82em;color:var(--text2);margin-bottom:12px;">模型预测你下一部想看电影的"画像"</p>
+      <div class="sid-tokens" id="sidTokens"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel: Results -->
+  <div class="results-area">
+    <div class="panel" id="resultsPanel">
+      <h2><span class="icon">✨</span> 推荐结果</h2>
+      <div id="resultsContent">
+        <div class="results-placeholder">
+          <div class="big-icon">🍿</div>
+          <p>选择几部你喜欢的电影，系统将基于语义理解为你推荐</p>
+          <p style="font-size:0.85em;margin-top:8px;">模型会分析电影的风格、情绪、节奏等语义特征</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<footer>
+  SID Generative Recommendation System · MovieLens 1M · Transformer Decoder · 语义 ID 冷启动友好
+</footer>
+
+<script>
+const state = {
+  selected: [],  // [{id, title, genres, year}]
+  debounceTimer: null,
+};
+
+const $search = document.getElementById('searchInput');
+const $dropdown = document.getElementById('dropdown');
+const $selectedList = document.getElementById('selectedList');
+const $recBtn = document.getElementById('recommendBtn');
+const $clearBtn = document.getElementById('clearBtn');
+const $results = document.getElementById('resultsContent');
+const $sidPanel = document.getElementById('sidPanel');
+const $sidTokens = document.getElementById('sidTokens');
+const $spinner = document.getElementById('btnSpinner');
+
+// ── Search ──
+$search.addEventListener('input', () => {
+  clearTimeout(state.debounceTimer);
+  const q = $search.value.trim();
+  if (q.length < 1) { $dropdown.classList.remove('open'); return; }
+  state.debounceTimer = setTimeout(() => searchMovies(q), 250);
+});
+
+$search.addEventListener('focus', () => {
+  if ($search.value.trim().length >= 1) searchMovies($search.value.trim());
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-box')) $dropdown.classList.remove('open');
+});
+
+async function searchMovies(q) {
+  try {
+    const res = await fetch(`/api/movies?q=${encodeURIComponent(q)}`);
+    const movies = await res.json();
+    renderDropdown(movies);
+  } catch (err) {
+    console.error('搜索失败:', err);
+  }
+}
+
+function renderDropdown(movies) {
+  const selectedIds = new Set(state.selected.map(m => m.id));
+  const filtered = movies.filter(m => !selectedIds.has(m.id));
+  if (filtered.length === 0) {
+    $dropdown.innerHTML = '<div style="padding:14px;color:var(--text2);text-align:center;">未找到匹配电影</div>';
+  } else {
+    $dropdown.innerHTML = filtered.map(m => `
+      <div class="dropdown-item" data-id="${m.id}" data-title="${escHtml(m.title)}" data-cn="${escHtml(m.cn_title || '')}" data-genres="${escHtml(m.genres)}" data-year="${m.year || ''}">
+        <div><div class="d-title">${m.cn_title ? escHtml(m.cn_title) + ' ' : ''}${escHtml(m.title)}</div><div class="d-genre">${escHtml(m.genres)}</div></div>
+      </div>
+    `).join('');
+  }
+  $dropdown.classList.add('open');
+
+  $dropdown.querySelectorAll('.dropdown-item').forEach(el => {
+    el.addEventListener('click', () => {
+      addMovie({ id: el.dataset.id, title: el.dataset.title, cn_title: el.dataset.cn, genres: el.dataset.genres, year: el.dataset.year });
+      $search.value = '';
+      $dropdown.classList.remove('open');
+    });
+  });
+}
+
+function addMovie(movie) {
+  if (state.selected.find(m => m.id === movie.id)) return;
+  if (state.selected.length >= 9) {
+    alert('最多选择 9 部电影（模型输入上限）');
+    return;
+  }
+  state.selected.push(movie);
+  renderSelected();
+}
+
+function removeMovie(id) {
+  state.selected = state.selected.filter(m => m.id !== id);
+  renderSelected();
+}
+
+function renderSelected() {
+  $recBtn.disabled = state.selected.length === 0;
+  if (state.selected.length === 0) {
+    $selectedList.innerHTML = '<div class="empty-hint">还没有选择电影，请在上方搜索并添加</div>';
+    return;
+  }
+  $selectedList.innerHTML = state.selected.map((m, i) => `
+    <div class="selected-item">
+      <div style="display:flex;align-items:center;flex:1;min-width:0;">
+        <span class="num">${i + 1}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.cn_title ? escHtml(m.cn_title) + ' ' : ''}${escHtml(m.title)}</span>
+      </div>
+      <button class="remove-btn" onclick="removeMovie('${m.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+$clearBtn.addEventListener('click', () => {
+  state.selected = [];
+  renderSelected();
+});
+
+// ── Recommend ──
+$recBtn.addEventListener('click', recommend);
+
+async function recommend() {
+  if (state.selected.length === 0) return;
+  $recBtn.disabled = true;
+  $spinner.style.display = 'inline-block';
+  $recBtn.childNodes[$recBtn.childNodes.length - 1].textContent = ' 推荐中...';
+
+  try {
+    const res = await fetch('/api/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ movie_ids: state.selected.map(m => m.id), top_k: 10 }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    renderSid(data.generated_sid);
+    renderResults(data.recommendations);
+  } catch (err) {
+    alert('推荐请求失败: ' + err.message);
+  } finally {
+    $recBtn.disabled = false;
+    $spinner.style.display = 'none';
+    $recBtn.childNodes[$recBtn.childNodes.length - 1].textContent = ' 🔮 获取推荐';
+  }
+}
+
+function renderSid(sidTokens) {
+  $sidPanel.style.display = 'block';
+  $sidTokens.innerHTML = sidTokens.map((t, i) => {
+    const cls = i < 3 ? 'genre' : (i < 9 ? 'attr' : 'implicit');
+    return `<div class="sid-token ${cls}">
+      <span class="tok-label">${escHtml(t.position)}</span>
+      <span class="tok-value">${escHtml(t.name)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderResults(recs) {
+  if (recs.length === 0) {
+    $results.innerHTML = '<div class="results-placeholder"><p>未能生成推荐，请尝试选择更多电影</p></div>';
+    return;
+  }
+  $results.innerHTML = '<div class="rec-grid">' + recs.map((r, i) => {
+    const rankCls = i < 3 ? `rank-${i+1}` : 'rank-n';
+    const genres = r.genres ? r.genres.split('|').map(g => `<span class="genre-tag">${escHtml(g)}</span>`).join('') : '';
+    const directors = r.directors && r.directors.length ? `<div class="detail-row">🎬 导演: <span>${escHtml(r.directors.join(', '))}</span></div>` : '';
+    const cast = r.cast && r.cast.length ? `<div class="detail-row">🎭 主演: <span>${escHtml(r.cast.slice(0, 3).join(', '))}</span></div>` : '';
+    const tags = r.tags || {};
+    const tagHtml = [
+      tags.mood ? `<span class="sem-tag mood">🎭 ${escHtml(tags.mood)}</span>` : '',
+      tags.pace ? `<span class="sem-tag pace">⏱ ${escHtml(tags.pace)}</span>` : '',
+      tags.audience ? `<span class="sem-tag audience">👥 ${escHtml(tags.audience)}</span>` : '',
+    ].filter(Boolean).join('');
+    const posterUrl = r.tmdb_id ? `https://image.tmdb.org/t/p/w500/${r.tmdb_id}` : '';
+    const emotionArc = tags.emotion_arc ? `<div class="detail-row" style="margin-top:4px;">🎢 情感弧线: <span>${escHtml(tags.emotion_arc)}</span></div>` : '';
+
+    return `<div class="rec-card-wrapper">
+      <div class="rank-badge ${rankCls}">${i + 1}</div>
+      <div class="rec-card">
+        <div class="poster-placeholder">${getMovieEmoji(r.genres)}</div>
+        <div class="rec-card-body">
+          <div class="rec-card-header">
+            <span class="rec-card-title">${r.cn_title ? escHtml(r.cn_title) + '<br><small style="color:var(--text2);font-weight:400;font-size:0.82em">' + escHtml(r.title) + '</small>' : escHtml(r.title)}</span>
+            <span class="rec-card-score">匹配 ${r.score.toFixed(1)}</span>
+          </div>
+          <div class="meta-row">${genres}</div>
+          ${r.overview ? `<div class="overview">${escHtml(r.overview)}</div>` : ''}
+          ${directors}${cast}${emotionArc}
+          ${tagHtml ? `<div class="tags-row">${tagHtml}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function getMovieEmoji(genres) {
+  if (!genres) return '🎬';
+  const g = genres.toLowerCase();
+  if (g.includes('animation')) return '🎨';
+  if (g.includes('horror')) return '👻';
+  if (g.includes('romance')) return '💕';
+  if (g.includes('comedy')) return '😄';
+  if (g.includes('action')) return '💥';
+  if (g.includes('sci-fi')) return '🚀';
+  if (g.includes('drama')) return '🎭';
+  if (g.includes('thriller')) return '🔪';
+  if (g.includes('musical')) return '🎵';
+  if (g.includes('war')) return '⚔️';
+  if (g.includes('documentary')) return '📹';
+  if (g.includes('western')) return '🤠';
+  if (g.includes('children')) return '🧒';
+  if (g.includes('mystery')) return '🔍';
+  if (g.includes('fantasy')) return '🧙';
+  return '🎬';
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>

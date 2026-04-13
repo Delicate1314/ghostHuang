@@ -1,0 +1,21 @@
+# Python 虚拟环境
+.venv/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 原始数据（太大，用户自行下载）
+data/raw/
+
+# 海报图片
+data/raw/posters/
+
+# IDE
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
